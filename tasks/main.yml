@@ -1,0 +1,71 @@
+---
+- name: Grafana Repository (RedHat)
+  block:
+    - name: Grafana Repository GPG key
+      rpm_key:
+        key: https://rpm.grafana.com/gpg.key
+        state: present
+
+    - name: Grafana Repository
+      yum_repository:
+        name: Grafana
+        description: Grafana
+        baseurl: https://rpm.grafana.com
+        enabled: yes
+        gpgcheck : yes
+        gpgkey: https://rpm.grafana.com/gpg.key
+        exclude: '*beta*'
+  when:
+    - ansible_os_family == "RedHat"
+
+- name: Install package
+  package:
+    state: latest
+    name:
+      - grafana
+
+- name: Copy SSL crt
+  copy:
+    src: /etc/letsencrypt/live/{{ host_fqdn }}/fullchain.pem
+    dest: /etc/grafana/grafana.crt
+    remote_src: yes
+    owner: root
+    group: grafana
+    mode: u=rw,g=r,o=
+  notify:
+    - Restart Grafana
+
+- name: Copy SSL key
+  copy:
+    src: /etc/letsencrypt/live/{{ host_fqdn }}/privkey.pem
+    dest: /etc/grafana/grafana.key
+    remote_src: yes
+    owner: root
+    group: grafana
+    mode: u=rw,g=r,o=
+  notify:
+    - Restart Grafana
+
+- name: Generate grafana.ini file from template
+  template:
+    src: grafana.ini.j2
+    dest: /etc/grafana/grafana.ini
+    owner: root
+    group: grafana
+    mode: u=rw,g=r,o=
+  notify:
+    - Restart Grafana
+
+- name: Firewall rules
+  firewalld:
+    port: "3000/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+
+- name: Enable daemon
+  service:
+    name: grafana-server
+    enabled: yes
+    state: started
+...
